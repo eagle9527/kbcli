@@ -308,16 +308,6 @@ func NewCreateBackupCmd(f cmdutil.Factory, streams genericiooptions.IOStreams) *
 	return cmd
 }
 func (o *CreateBackupOptions) RegisterBackupFlagCompletionFunc(cmd *cobra.Command, f cmdutil.Factory) {
-	getClusterName := func(cmd *cobra.Command, args []string) string {
-		clusterName, _ := cmd.Flags().GetString("cluster")
-		if clusterName != "" {
-			return clusterName
-		}
-		if len(args) > 0 {
-			return args[0]
-		}
-		return ""
-	}
 	util.CheckErr(cmd.RegisterFlagCompletionFunc(
 		"deletion-policy",
 		func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
@@ -327,7 +317,7 @@ func (o *CreateBackupOptions) RegisterBackupFlagCompletionFunc(cmd *cobra.Comman
 	util.CheckErr(cmd.RegisterFlagCompletionFunc(
 		"policy",
 		func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-			label := fmt.Sprintf("%s=%s", constant.AppInstanceLabelKey, getClusterName(cmd, args))
+			label := fmt.Sprintf("%s=%s", constant.AppInstanceLabelKey, util.GetClusterNameFromArgsOrFlag(cmd, args))
 			return util.CompGetResourceWithLabels(f, cmd, util.GVRToString(types.BackupPolicyGVR()), []string{label}, toComplete), cobra.ShellCompDirectiveNoFileComp
 		}))
 
@@ -340,7 +330,7 @@ func (o *CreateBackupOptions) RegisterBackupFlagCompletionFunc(cmd *cobra.Comman
 			}
 			var (
 				labelSelector string
-				clusterName   = getClusterName(cmd, args)
+				clusterName   = util.GetClusterNameFromArgsOrFlag(cmd, args)
 			)
 			if clusterName != "" {
 				labelSelector = fmt.Sprintf("%s=%s", constant.AppInstanceLabelKey, clusterName)

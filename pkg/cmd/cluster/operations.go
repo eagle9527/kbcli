@@ -36,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/cli-runtime/pkg/genericiooptions"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
+	utilcomp "k8s.io/kubectl/pkg/util/completion"
 	"k8s.io/kubectl/pkg/util/templates"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -926,9 +927,129 @@ func NewPromoteCmd(f cmdutil.Factory, streams genericiooptions.IOStreams) *cobra
 			cmdutil.CheckErr(o.Run())
 		},
 	}
-	cmd.Flags().StringVar(&o.Component, "component", "", "Specify the component name of the cluster, if the cluster has multiple components, you need to specify a component")
+	flags.AddComponentFlag(f, cmd, &o.Component, "Specify the component name of the cluster, if the cluster has multiple components, you need to specify a component")
 	cmd.Flags().StringVar(&o.Instance, "instance", "", "Specify the instance name as the new primary or leader of the cluster, you can get the instance name by running \"kbcli cluster list-instances\"")
 	cmd.Flags().BoolVar(&o.autoApprove, "auto-approve", false, "Skip interactive approval before promote the instance")
 	o.addCommonFlags(cmd, f)
 	return cmd
 }
+
+var customOpsExample = templates.Examples(`
+		# 
+		kbcli cluster custom-ops kafka-topic mycluster --topic test --partition 2 --replicas 3
+
+		# 
+        kbcli cluster custom-ops kafka-topic mycluster --topic test --partition 2 --replicas 3 --component broker
+`)
+
+type customOperations struct {
+	*OperationsOptions
+	OpsDefinitionName string
+	Params            []map[string]string
+}
+
+func NewCustomOpsCmd(f cmdutil.Factory, streams genericiooptions.IOStreams) *cobra.Command {
+	o := &customOperations{
+		OperationsOptions: newBaseOperationsOptions(f, streams, "Custom", false),
+	}
+	cmd := &cobra.Command{
+		Use:               "custom-ops",
+		Example:           customOpsExample,
+		ValidArgsFunction: util.ResourceNameCompletionFunc(f, types.OpsDefinitionGVR()),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			o.Args = args
+			cmdutil.BehaviorOnFatal(printer.FatalWithRedColor)
+			/*			err := o.parseOpsDefinitionAndParams(cmd, args, f)
+						if errors.Is(err, pflag.ErrHelp) {
+							return err
+						} else {
+							util.CheckErr(err)
+						}*/
+			cmdutil.CheckErr(o.Complete())
+			cmdutil.CheckErr(o.CompleteComponentsFlag())
+			cmdutil.CheckErr(o.Validate())
+			cmdutil.CheckErr(o.Run())
+			return nil
+		},
+	}
+	flags.AddComponentFlag(f, cmd, &o.Component, "Specify the component name of the cluster. if not specified, using the first component which referenced the defined componentDefinition.")
+	cmd.Flags().StringVar(&o.Name, "cluster", "", "Specify the cluster name to")
+	cmd.Flags().BoolVar(&o.autoApprove, "auto-approve", false, "Skip interactive approval before promote the instance")
+	o.addCommonFlags(cmd, f)
+	util.CheckErr(cmd.RegisterFlagCompletionFunc("cluster", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return utilcomp.CompGetResource(f, util.GVRToString(types.ClusterGVR()), toComplete), cobra.ShellCompDirectiveNoFileComp
+	}))
+	return cmd
+}
+
+/*func (o *customOperations) parseOpsDefinitionAndParams(cmd *cobra.Command, args []string, f cmdutil.Factory) error {
+	// Since we disabled the flag parsing of the cmd, we need to parse it from args
+	help := false
+	tmpFlags := pflag.NewFlagSet("tmp", pflag.ContinueOnError)
+	tmpFlags.StringVar(&o.storageProvider, providerFlagName, "", "")
+	tmpFlags.BoolVarP(&help, "help", "h", false, "") // eat --help and -h
+	tmpFlags.ParseErrorsWhitelist.UnknownFlags = true
+	_ = tmpFlags.Parse(args)
+	if o.storageProvider == "" {
+		if help {
+			cmd.Long = templates.LongDesc(`
+                Note: This help information only shows the common flags for creating a
+                backup repository, to show provider-specific flags, please specify
+                the --provider flag. For example:
+
+                    kbcli backuprepo create --provider s3 --help
+            `)
+			return pflag.ErrHelp
+		}
+		return fmt.Errorf("please specify the --%s flag", providerFlagName)
+	}
+
+	// Get provider info from API server
+	obj, err := o.dynamic.Resource(types.StorageProviderGVR()).Get(
+		context.Background(), o.storageProvider, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("storage provider \"%s\" is not found", o.storageProvider)
+		}
+		return err
+	}
+	provider := &storagev1alpha1.StorageProvider{}
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, provider)
+	if err != nil {
+		return err
+	}
+	o.providerObject = provider
+
+	// Build flags by schema
+	if provider.Spec.ParametersSchema != nil &&
+		provider.Spec.ParametersSchema.OpenAPIV3Schema != nil {
+		// Convert apiextensionsv1.JSONSchemaProps to spec.Schema
+		schemaData, err := json.Marshal(provider.Spec.ParametersSchema.OpenAPIV3Schema)
+		if err != nil {
+			return err
+		}
+		schema := &spec.Schema{}
+		if err = json.Unmarshal(schemaData, schema); err != nil {
+			return err
+		}
+		if err = flags.BuildFlagsBySchema(cmd, schema); err != nil {
+			return err
+		}
+	}
+
+	// Parse dynamic flags
+	cmd.DisableFlagParsing = false
+	err = cmd.ParseFlags(args)
+	if err != nil {
+		return err
+	}
+	helpFlag := cmd.Flags().Lookup("help")
+	if helpFlag != nil && helpFlag.Value.String() == "true" {
+		return pflag.ErrHelp
+	}
+	if err := cmd.ValidateRequiredFlags(); err != nil {
+		return err
+	}
+
+	return nil
+}*/

@@ -46,6 +46,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	"github.com/pmezard/go-difflib/difflib"
+	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 	corev1 "k8s.io/api/core/v1"
 	apiextv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -1042,4 +1043,15 @@ func RandRFC1123String(n int) string {
 		b[i] = letters[mrand.Intn(len(letters))]
 	}
 	return string(b)
+}
+
+func GetClusterNameFromArgsOrFlag(cmd *cobra.Command, args []string) string {
+	clusterName, _ := cmd.Flags().GetString("cluster")
+	if clusterName != "" {
+		return clusterName
+	}
+	if len(args) > 0 {
+		return args[0]
+	}
+	return ""
 }

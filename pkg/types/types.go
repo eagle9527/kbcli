@@ -103,6 +103,7 @@ const (
 	ResourceClusterVersions             = "clusterversions"
 	ResourceComponentDefs               = "componentdefinitions"
 	ResourceOpsRequests                 = "opsrequests"
+	ResourceOpsDefinitions              = "opsdefinitions"
 	ResourceConfigConstraintVersions    = "configconstraints"
 	ResourceComponentResourceConstraint = "componentresourceconstraints"
 	ResourceComponentClassDefinition    = "componentclassdefinitions"
@@ -268,6 +269,10 @@ func ClusterVersionGVR() schema.GroupVersionResource {
 
 func CompDefGVR() schema.GroupVersionResource {
 	return schema.GroupVersionResource{Group: AppsAPIGroup, Version: AppsAPIVersion, Resource: ResourceComponentDefs}
+}
+
+func OpsDefinitionGVR() schema.GroupVersionResource {
+	return schema.GroupVersionResource{Group: AppsAPIGroup, Version: AppsAPIVersion, Resource: ResourceOpsDefinitions}
 }
 
 func OpsGVR() schema.GroupVersionResource {
